@@ -1,0 +1,524 @@
+﻿<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>SignalR Live Sensor Table</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/5.0.7/signalr.min.js"></script>
+  <style>
+    :root{
+      --bg: #f8fafc;             /* slate-50 */
+      --panel: #ffffff;          /* white */
+      --card: #ffffff;           /* white */
+      --text: #0f172a;           /* slate-900 */
+      --muted: #64748b;          /* slate-500 */
+      --border: #e2e8f0;         /* slate-200 */
+      --accent: #6366f1;         /* indigo-500 */
+      --accent-2: #22c55e;       /* green-500 */
+      --ring: rgba(99,102,241,0.35);
+      --shadow: 0 10px 30px rgba(2, 6, 23, 0.08);
+      --tag-good-bg: #ecfdf5;
+      --tag-good-text: #065f46;
+      --tag-good-border: #a7f3d0;
+      --tag-warn-bg: #fffbeb;
+      --tag-warn-text: #92400e;
+      --tag-warn-border: #fde68a;
+      --tag-bad-bg: #fef2f2;
+      --tag-bad-text: #991b1b;
+      --tag-bad-border: #fecaca;
+      --highlight: #fff7d6;
+      --table-stripe: #fafafa;
+    }
+    [data-theme="dark"]{
+      --bg: #0b1220;             /* deep slate/navy */
+      --panel: #0f172a;          /* slate-900 */
+      --card: #111827;           /* gray-900 */
+      --text: #e2e8f0;           /* slate-200 */
+      --muted: #94a3b8;          /* slate-400 */
+      --border: #1f2937;         /* gray-800 */
+      --accent: #818cf8;         /* indigo-400 */
+      --accent-2: #34d399;       /* green-400 */
+      --ring: rgba(129,140,248,0.35);
+      --shadow: 0 10px 30px rgba(2, 6, 23, 0.35);
+      --tag-good-bg: rgba(16,185,129,0.15);
+      --tag-good-text: #86efac;
+      --tag-good-border: rgba(16,185,129,0.35);
+      --tag-warn-bg: rgba(245,158,11,0.15);
+      --tag-warn-text: #fde68a;
+      --tag-warn-border: rgba(245,158,11,0.35);
+      --tag-bad-bg: rgba(239,68,68,0.18);
+      --tag-bad-text: #fca5a5;
+      --tag-bad-border: rgba(239,68,68,0.4);
+      --highlight: rgba(234, 179, 8, 0.15);
+      --table-stripe: rgba(255,255,255,0.03);
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+      color: var(--text);
+      background:
+        radial-gradient(1200px 800px at 0% -10%, rgba(99,102,241,0.12), transparent 50%),
+        radial-gradient(1000px 700px at 120% -20%, rgba(34,197,94,0.10), transparent 50%),
+        var(--bg);
+    }
+
+    .container { max-width: 1120px; margin: 0 auto; padding: 24px; }
+    .topbar {
+      display:flex; align-items:center; justify-content:space-between; gap:12px;
+      background: linear-gradient(180deg, rgba(99,102,241,0.07), transparent 70%);
+      padding: 12px 0 18px;
+    }
+    .brand { display:flex; align-items:center; gap:12px; }
+    .brand .logo {
+      width: 36px; height: 36px; border-radius: 10px;
+      background: linear-gradient(135deg, var(--accent), #22d3ee);
+      box-shadow: 0 8px 24px rgba(99,102,241,0.35);
+    }
+    h1 { font-size: 22px; margin: 0; font-weight: 700; letter-spacing: 0.2px; }
+    .actions { display:flex; align-items:center; gap:10px; }
+
+    /* Connection status with colored dot */
+    .status {
+      position: relative;
+      padding-left: 18px;
+      font-size: 14px;
+      color: var(--muted);
+      user-select: none;
+    }
+    .status::before {
+      content: "";
+      position: absolute;
+      left: 0; top: 50%; transform: translateY(-50%);
+      width: 10px; height: 10px; border-radius: 50%;
+      background: #cbd5e1;  /* default slate-300 */
+      box-shadow: 0 0 0 4px rgba(148,163,184,0.18);
+    }
+    .status[data-state="connecting"]::before { background: #60a5fa; box-shadow: 0 0 0 4px rgba(96,165,250,0.25); }
+    .status[data-state="connected"]::before { background: #10b981; box-shadow: 0 0 0 4px rgba(16,185,129,0.25); }
+    .status[data-state="reconnecting"]::before { background: #f59e0b; box-shadow: 0 0 0 4px rgba(245,158,11,0.28); }
+    .status[data-state="disconnected"]::before,
+    .status[data-state="error"]::before { background: #ef4444; box-shadow: 0 0 0 4px rgba(239,68,68,0.24); }
+
+    /* Controls panel */
+    .panel {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+      box-shadow: var(--shadow);
+      margin-bottom: 16px;
+    }
+    .controls {
+      display: grid;
+      grid-template-columns: 1fr 1fr auto;
+      gap: 12px;
+      align-items: center;
+    }
+    @media (max-width: 720px) {
+      .controls { grid-template-columns: 1fr; }
+    }
+    .controls input {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: transparent;
+      color: var(--text);
+      outline: none;
+      transition: border .15s ease, box-shadow .15s ease;
+    }
+    .controls input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 4px var(--ring);
+    }
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      padding: 10px 14px; border-radius: 10px; border: 0; cursor: pointer;
+      font-weight: 600; letter-spacing: .2px;
+      transition: transform .05s ease, box-shadow .15s ease, filter .15s ease;
+    }
+    .btn:active { transform: translateY(1px); }
+    .btn-primary {
+      color: #fff;
+      background: linear-gradient(135deg, var(--accent), #22c55e);
+      box-shadow: 0 10px 20px rgba(99,102,241,.25), 0 6px 14px rgba(34,197,94,.15);
+    }
+    .btn-primary:hover { filter: brightness(1.05); }
+
+    .btn-ghost {
+      background: transparent; color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    /* Meta cards */
+    .row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 12px 0 16px; }
+    @media (max-width: 880px) { .row { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 520px) { .row { grid-template-columns: 1fr; } }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 12px 14px;
+      box-shadow: var(--shadow);
+    }
+    .meta-label { font-size: 12px; color: var(--muted); display:block; margin-bottom: 4px; }
+    .meta-value { font-weight: 700; font-size: 15px; letter-spacing: .2px; }
+
+    /* Table */
+    .table-wrap {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .table-head {
+      display:flex; align-items:center; justify-content:space-between;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(180deg, rgba(99,102,241,.07), transparent 90%);
+    }
+    .table-title { font-weight: 700; letter-spacing:.2px; }
+    .count-pill {
+      padding: 4px 10px; border-radius: 999px; font-size: 12px;
+      color: #fff; background: var(--accent);
+      font-weight: 600;
+    }
+
+    table { border-collapse: separate; border-spacing: 0; width: 100%; }
+    thead th {
+      position: sticky; top: 0; z-index: 1;
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      color: var(--muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .6px;
+      font-size: 12px;
+    }
+    th, td { padding: 12px 14px; text-align: left; }
+    tbody tr { transition: background-color .2s ease; }
+    tbody tr:nth-child(odd) { background: var(--table-stripe); }
+    tbody tr:hover { background: rgba(99,102,241,0.06); }
+    tbody tr.highlight { animation: flash .7s ease-in-out; }
+    @keyframes flash { from { background: var(--highlight); } to { background: transparent; } }
+
+    .tag {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 600;
+      border: 1px solid transparent;
+    }
+    .tag.good  { background: var(--tag-good-bg);  color: var(--tag-good-text);  border-color: var(--tag-good-border); }
+    .tag.warn  { background: var(--tag-warn-bg);  color: var(--tag-warn-text);  border-color: var(--tag-warn-border); }
+    .tag.bad   { background: var(--tag-bad-bg);   color: var(--tag-bad-text);   border-color: var(--tag-bad-border); }
+
+    /* Debug */
+    details.debug {
+      margin-top: 18px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    details.debug > summary {
+      cursor: pointer;
+      padding: 12px 14px;
+      font-weight: 600;
+      color: var(--muted);
+      outline: none;
+    }
+    #messagesList {
+      margin: 0; padding: 12px 16px 16px;
+      border-top: 1px solid var(--border);
+      max-height: 240px; overflow: auto;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    #messagesList li { margin: 2px 0; }
+
+    /* Util */
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header class="topbar">
+      <div class="brand">
+        <div class="logo" aria-hidden="true"></div>
+        <h1>SignalR Live Sensor Table</h1>
+      </div>
+      <div class="actions">
+        <button id="themeToggle" class="btn btn-ghost" title="Toggle theme">🌓 Theme</button>
+        <span id="connStatus" class="status" data-state="connecting">Connecting…</span>
+      </div>
+    </header>
+
+    <!-- Controls -->
+    <div class="panel">
+      <div class="controls">
+        <input id="usernameInput" type="text" placeholder="👤 Enter your username" value="web-client" />
+        <input id="groupInput" type="text" placeholder="👥 Enter group name" value="FIOT-PLATFORM" />
+        <button id="joinBtn" class="btn btn-primary">Join Group</button>
+      </div>
+    </div>
+
+    <!-- Packet meta -->
+    <div class="row">
+      <div class="card">
+        <span class="meta-label">MacId</span>
+        <span class="meta-value" id="metaMac">—</span>
+      </div>
+      <div class="card">
+        <span class="meta-label">Serial No</span>
+        <span class="meta-value" id="metaSerial">—</span>
+      </div>
+      <div class="card">
+        <span class="meta-label">Date</span>
+        <span class="meta-value" id="metaDate">—</span>
+      </div>
+      <div class="card">
+        <span class="meta-label">Time</span>
+        <span class="meta-value" id="metaTime">—</span>
+      </div>
+    </div>
+
+    <!-- Sensors table -->
+    <div class="table-wrap">
+      <div class="table-head">
+        <div class="table-title">Live Sensors</div>
+        <div class="count-pill" id="sensorCount">0</div>
+      </div>
+      <table aria-describedby="tableDesc">
+        <caption class="sr-only" id="tableDesc">Live sensor readings streamed via SignalR</caption>
+        <thead>
+          <tr>
+            <th style="width:72px;">#</th>
+            <th>Component</th>
+            <th>Value</th>
+            <th>Unit</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="sensorBody">
+          <!-- rows injected here -->
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Fallback chat log for non-JSON messages / debug -->
+    <details class="debug">
+      <summary>Raw Messages (debug)</summary>
+      <ul id="messagesList"></ul>
+    </details>
+
+    <!-- Optional original inputs for sending messages -->
+    <div class="panel" style="margin-top:16px;">
+      <div style="display:grid; gap:8px; grid-template-columns: 1fr auto; align-items:center;">
+        <input id="messageInput" type="text" placeholder="💬 Enter your message" />
+        <button class="btn btn-primary" onclick="sendMessage()">Send Message to Group</button>
+      </div>
+      <div style="display:grid; gap:8px; grid-template-columns: 1fr 1fr auto; align-items:center; margin-top:10px;">
+        <input id="privateMessageReceiver" type="text" placeholder="🎯 Receiver username" />
+        <input id="privateMessageInput" type="text" placeholder="🔒 Private message" />
+        <button class="btn btn-primary" onclick="sendPrivateMessage()">Send Private Message</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // --- Theme toggle ---
+    (function initTheme(){
+      const root = document.documentElement;
+      const btn = document.getElementById('themeToggle');
+      const preferred = localStorage.getItem('theme')
+        || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      root.setAttribute('data-theme', preferred);
+
+      btn.addEventListener('click', () => {
+        const next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+        root.setAttribute('data-theme', next);
+        localStorage.setItem('theme', next);
+      });
+    })();
+
+    // --- Build the connection ---
+    const connection = new signalR.HubConnectionBuilder()
+      .withUrl("https://platform.fiot.app/FIOT.SignalR/groupmemberchathub")
+      .withAutomaticReconnect()
+      .build();
+
+    // --- UI elements ---
+    const statusEl = document.getElementById('connStatus');
+    const joinBtn = document.getElementById('joinBtn');
+    const usernameInput = document.getElementById('usernameInput');
+    const groupInput = document.getElementById('groupInput');
+
+    const metaMac = document.getElementById('metaMac');
+    const metaSerial = document.getElementById('metaSerial');
+    const metaDate = document.getElementById('metaDate');
+    const metaTime = document.getElementById('metaTime');
+
+    const tbody = document.getElementById('sensorBody');
+    const messagesList = document.getElementById('messagesList');
+    const sensorCount = document.getElementById('sensorCount');
+
+    // keep a map from ComponentId to <tr> so we can update in place
+    const rowMap = new Map();
+
+    function setStatusVisual(msg) {
+      const s = (msg || '').toLowerCase();
+      let state = 'idle';
+      if (s.includes('connected')) state = 'connected';
+      else if (s.includes('reconnect')) state = 'reconnecting';
+      else if (s.includes('disconnect')) state = 'disconnected';
+      else if (s.includes('fail') || s.includes('error')) state = 'error';
+      else if (s.includes('connecting')) state = 'connecting';
+      statusEl.setAttribute('data-state', state);
+    }
+    function status(msg) {
+      statusEl.textContent = msg;
+      setStatusVisual(msg);
+    }
+
+    // --- Connection lifecycle ---
+    connection.onreconnecting(() => status('Reconnecting…'));
+    connection.onreconnected(() => status('Connected (reconnected)'));
+    connection.onclose(() => status('Disconnected'));
+
+    connection.start()
+      .then(() => status('Connected'))
+      .catch(err => { status('Failed to connect'); console.error(err); });
+
+    // --- Join group button ---
+    joinBtn.addEventListener('click', () => {
+      const username = usernameInput.value || 'web-client';
+      const group = groupInput.value || 'FIOT-PLATFORM';
+      connection.invoke("JoinGroup", username, group)
+        .then(() => status(`Joined group: ${group}`))
+        .catch(err => console.error(err));
+    });
+
+    // --- Receive messages ---
+    connection.on("ReceiveMessage", (user, message) => {
+      let obj = null;
+      try {
+        obj = (typeof message === 'string') ? JSON.parse(message) : message;
+      } catch (_) { /* ignore parse error */ }
+
+      if (obj && obj.Sensors && Array.isArray(obj.Sensors)) {
+        renderPacket(obj);
+      } else {
+        const li = document.createElement('li');
+        li.textContent = `${user}: ${typeof message === 'string' ? message : JSON.stringify(message)}`;
+        messagesList.appendChild(li);
+      }
+    });
+
+    // --- Render/Update helpers ---
+    function renderPacket(packet) {
+      // Update meta
+      metaMac.textContent = packet.MacId ?? '—';
+      metaSerial.textContent = packet.SerialNo ?? '—';
+      metaDate.textContent = packet.Date ?? '—';
+      metaTime.textContent = packet.Time ?? '—';
+
+      // Ensure rows for each sensor, update values
+      let count = 0;
+      for (const s of packet.Sensors) {
+        const key = s.ComponentId ?? s.Sno ?? (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()));
+        let tr = rowMap.get(key);
+
+        const statusTag = classifyStatus(s.ComponentName);
+
+        if (!tr) {
+          tr = document.createElement('tr');
+          const tdSno = document.createElement('td');
+          const tdName = document.createElement('td');
+          const tdVal = document.createElement('td');
+          const tdUnit = document.createElement('td');
+          const tdStatus = document.createElement('td');
+          tr.append(tdSno, tdName, tdVal, tdUnit, tdStatus);
+          tbody.appendChild(tr);
+          rowMap.set(key, tr);
+        }
+
+        // Update cells
+        const [tdSno, tdName, tdVal, tdUnit, tdStatus] = tr.children;
+        tdSno.textContent = (s.Sno ?? '') + '';
+        tdName.textContent = s.ComponentName ?? '';
+        tdVal.textContent = s.Value ?? '';
+        tdUnit.textContent = s.Unit ?? '';
+
+        tdStatus.innerHTML = '';
+        const span = document.createElement('span');
+        span.className = `tag ${statusTag.class}`;
+        span.textContent = `${statusTag.icon} ${statusTag.text}`;
+        tdStatus.appendChild(span);
+
+        // quick highlight effect on update
+        tr.classList.remove('highlight');
+        void tr.offsetWidth;
+        tr.classList.add('highlight');
+
+        count++;
+      }
+
+      if (sensorCount) sensorCount.textContent = count;
+
+      // Optionally: sync rows if some disappeared
+      // syncRows(packet.Sensors);
+
+      // Also echo the normalized JSON to the debug list (optional)
+      const li = document.createElement('li');
+      li.textContent = `[${packet.Time ?? ''}] ${packet.MacId ?? ''} → ${packet.Sensors.length} sensors`;
+      messagesList.appendChild(li);
+    }
+
+    function classifyStatus(componentName) {
+      const name = (componentName || '').toLowerCase();
+      if (name.includes('very good') || name.includes('excellent') || name.includes('good') || name.includes('ok') || name.includes('normal')) {
+        return { class: 'good', text: 'Good', icon: '✅' };
+      }
+      if (name.includes('bad') || name.includes('critical') || name.includes('fail') || name.includes('offline')) {
+        return { class: 'bad', text: 'Bad', icon: '⛔' };
+      }
+      return { class: 'warn', text: componentName || '—', icon: '⚠️' };
+    }
+
+    function syncRows(sensors) {
+      const validKeys = new Set(sensors.map(s => (s.ComponentId ?? s.Sno)));
+      for (const [key, tr] of rowMap.entries()) {
+        if (!validKeys.has(key)) {
+          tr.remove();
+          rowMap.delete(key);
+        }
+      }
+    }
+
+    // --- Optional: send helpers (kept from your original) ---
+    function sendMessage() {
+      const username = document.getElementById("usernameInput").value;
+      const group = document.getElementById("groupInput").value;
+      const message = document.getElementById("messageInput").value;
+      connection.invoke("SendMessageToGroup", group, username, message).catch(err => console.error(err));
+    }
+    function sendPrivateMessage() {
+      const sender = document.getElementById("usernameInput").value;
+      const receiver = document.getElementById("privateMessageReceiver").value;
+      const message = document.getElementById("privateMessageInput").value;
+      connection.invoke("SendPrivateMessage", sender, receiver, message).catch(err => console.error(err));
+    }
+
+    window.sendMessage = sendMessage;
+    window.sendPrivateMessage = sendPrivateMessage;
+  </script>
+</body>
+</html>
